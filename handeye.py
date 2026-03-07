@@ -2,6 +2,7 @@ import cv2
 import yaml
 import numpy as np
 import threading
+import time
 import tkinter as tk
 import rtde_control
 import rtde_receive
@@ -29,9 +30,7 @@ rtde_c = rtde_control.RTDEControlInterface(hostip)
 rtde_r = rtde_receive.RTDEReceiveInterface(hostip)
 
 
-# ---------------------------
 # Camera thread
-# ---------------------------
 def camera_loop():
     global frame, running, latest_cTo_H
 
@@ -45,7 +44,8 @@ def camera_loop():
             H = np.eye(4)
             H[:3, :3] = R
             H[:3, 3] = tvc.flatten()
-            latest_cTo_H = H
+            with lock:
+                latest_cTo_H = H
 
         if not ret:
             continue
@@ -56,28 +56,27 @@ def camera_loop():
     camera.release()
 
 
-# ---------------------------
 # Robot thread
-# ---------------------------
 def robot_loop():
     global running, latest_bTe_H
 
     rtde_c.teachMode()
 
-    while running:
-        tcp = rtde_r.getActualTCPPose()
-        Rtcp, _ = cv2.Rodrigues(np.array(tcp[3:6]))
-        H = np.eye(4)
-        H[:3, :3] = Rtcp
-        H[:3, 3] = tcp[0:3]
-        latest_bTe_H = H
+    try:
+        while running:
+            tcp = rtde_r.getActualTCPPose()
+            Rtcp, _ = cv2.Rodrigues(np.array(tcp[3:6]))
+            H = np.eye(4)
+            H[:3, :3] = Rtcp
+            H[:3, 3] = tcp[0:3]
+            with lock:
+                latest_bTe_H = H
+            time.sleep(0.01)  # Prevent CPU spinning
+    finally:
+        rtde_c.endTeachMode()
 
-    rtde_c.endTeachMode()
 
-
-# ---------------------------
 # GUI
-# ---------------------------
 class App:
 
     def __init__(self, root):
@@ -143,11 +142,15 @@ class App:
     def capture(self):
         global latest_cTo_H, latest_bTe_H, samples
 
-        if latest_cTo_H is None or latest_bTe_H is None:
-            self.log("pose not ready")
-            return
+        with lock:
+            if latest_cTo_H is None or latest_bTe_H is None:
+                self.log("pose not ready")
+                return
+            # Create copies to avoid reference issues
+            cTo = latest_cTo_H.copy()
+            bTe = latest_bTe_H.copy()
+            samples.append((bTe, cTo))
 
-        samples.append((latest_bTe_H, latest_cTo_H))
         self.log(f"capture sample #{len(samples)}")
         self.status.config(text=f"Samples: {len(samples)}")
 
@@ -156,13 +159,19 @@ class App:
 
         self.log("run calibration...!!!")
 
+        with lock:
+            samples_copy = [s for s in samples]  # Copy samples list
+            if not samples_copy:
+                self.log("no samples to calibrate")
+                return
+
         if self.mode.get() == "eye_in_hand":
             self.log("mode: Eye-in-Hand")
             solver_cri = calibrator.HandEyeCalibrator(setup="Moving")
         if self.mode.get() == "eye_to_hand":
             self.log("mode: Eye-to-Hand")
             solver_cri = calibrator.HandEyeCalibrator(setup="Fixed")
-        for sample in samples:
+        for sample in samples_copy:
             solver_cri.add_sample(sample[0], sample[1])
 
         bTc = solver_cri.solve(method=solver.Daniilidis1999)
@@ -179,30 +188,33 @@ class App:
             bTc_q[0],
         ]
 
-        result_matrix = bTc
-        result_quaternion = bTcPose
+        with lock:
+            result_matrix = bTc
+            result_quaternion = bTcPose
 
         self.log(f"calibrated bTc in Matrix:\n{bTc}")
         self.log(f"calibrated bTc in quaternion:\n{bTcPose}")
 
     def reset(self):
         global samples
-        samples.clear()
-
+        with lock:
+            samples.clear()
         self.status.config(text="Samples: 0")
-
         self.log("samples reset")
 
     def save(self):
         global result_matrix, result_quaternion
         path = self.save_path.get()
 
-        if result_matrix is None or result_quaternion is None:
-            self.log("no result yet!!!")
-            return
+        with lock:
+            if result_matrix is None or result_quaternion is None:
+                self.log("no result yet!!!")
+                return
+            res_matrix = result_matrix.copy()
+            res_quaternion = result_quaternion[:]
 
-        res_matrix_list = result_matrix.astype(float).flatten().tolist()
-        res_quaternion_list = [float(x) for x in result_quaternion]
+        res_matrix_list = res_matrix.astype(float).flatten().tolist()
+        res_quaternion_list = [float(x) for x in res_quaternion]
         data = {
             "Calibration Mode": self.mode.get(),
             "Result in Matrix form (row major)": res_matrix_list,
@@ -241,12 +253,9 @@ class App:
         self.root.after(33, self.update_gui)
 
 
-# ---------------------------
 # Start threads
-# ---------------------------
 threading.Thread(target=camera_loop, daemon=True).start()
 threading.Thread(target=robot_loop, daemon=True).start()
-
 root = tk.Tk()
 app = App(root)
 root.mainloop()

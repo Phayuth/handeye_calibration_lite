@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
 import yaml
+
 np.set_printoptions(suppress=True)
+
 
 class Camera:
 
@@ -35,6 +37,21 @@ class Camera:
         }
 
         return info
+
+    def add_camera_info(self, height, width, distortion_model, d, k, r, p):
+        if r is None:
+            r = np.eye(3).flatten().tolist()
+        if p is None:
+            p = np.hstack((k, np.zeros((3, 1)))).flatten().tolist()
+        self.info = {
+            "height": height,
+            "width": width,
+            "distm": distortion_model,
+            "d": np.array(d),
+            "k": np.array(k).reshape(3, 3),
+            "r": np.array(r).reshape(3, 3),
+            "p": np.array(p).reshape(3, 4),
+        }
 
     def save_camera_info(self, yamlPath):
         data = {
