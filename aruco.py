@@ -114,9 +114,10 @@ class ARUCOBoardPose:
 if __name__ == "__main__":
     from camera import Camera
 
-    camleft = Camera(4, "./left.yaml")
     board = ARUCOBoardPose()
-    # board.generate()
+    board.generate()
+
+    camleft = Camera(4, "./left.yaml")
     while True:
         _, imglraw = camleft.read()
         board.run(camleft, imglraw)
