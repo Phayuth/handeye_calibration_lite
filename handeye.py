@@ -17,8 +17,8 @@ running = True
 
 # global variables to store latest poses
 frame = None
-latest_cTo_H = None
-latest_bTe_H = None
+latest_cTo_H = None # convention: cTo mean "obj to cam". read in reverse order
+latest_bTe_H = None # convention: bTe mean "ee to base". read in reverse order
 samples = []
 result_matrix = None
 result_quaternion = None
@@ -168,32 +168,39 @@ class App:
         if self.mode.get() == "eye_in_hand":
             self.log("mode: Eye-in-Hand")
             solver_cri = calibrator.HandEyeCalibrator(setup="Moving")
-        if self.mode.get() == "eye_to_hand":
+            result_name = "eTc"
+        elif self.mode.get() == "eye_to_hand":
             self.log("mode: Eye-to-Hand")
             solver_cri = calibrator.HandEyeCalibrator(setup="Fixed")
+            result_name = "bTc"
+        else:
+            self.log(f"unknown mode: {self.mode.get()}")
+            return
         for sample in samples_copy:
             solver_cri.add_sample(sample[0], sample[1])
 
-        bTc = solver_cri.solve(method=solver.Daniilidis1999)
+        X = solver_cri.solve(method=solver.Daniilidis1999)
 
         # baldor module give quternion in format qw qx qy qz
-        bTc_q = br.br_transform.to_quaternion(bTc)
-        bTcPose = [
-            bTc[0, 3],
-            bTc[1, 3],
-            bTc[2, 3],
-            bTc_q[1],
-            bTc_q[2],
-            bTc_q[3],
-            bTc_q[0],
+        X_q = br.br_transform.to_quaternion(X)
+        XPose = [
+            X[0, 3],
+            X[1, 3],
+            X[2, 3],
+            X_q[1],
+            X_q[2],
+            X_q[3],
+            X_q[0],
         ]
 
         with lock:
-            result_matrix = bTc
-            result_quaternion = bTcPose
+            result_matrix = X
+            result_quaternion = XPose
 
-        self.log(f"calibrated bTc in Matrix:\n{bTc}")
-        self.log(f"calibrated bTc in quaternion:\n{bTcPose}")
+        self.log(f"calibrated {result_name} in Matrix:\n{X}")
+        self.log(
+            f"calibrated {result_name} in quaternion [x y z qx qy qz qw]:\n{XPose}"
+        )
 
     def reset(self):
         global samples
@@ -218,7 +225,7 @@ class App:
         data = {
             "Calibration Mode": self.mode.get(),
             "Result in Matrix form (row major)": res_matrix_list,
-            "Result in Quaternion form (xyz|qwqxqyqz)": res_quaternion_list,
+            "Result in Quaternion form (xyz|qxqyqzqw)": res_quaternion_list,
         }
         with open(path, "w") as f:
             yaml.safe_dump(data, f, sort_keys=False)

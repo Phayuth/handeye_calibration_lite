@@ -1,5 +1,4 @@
 import enum
-import itertools
 import numpy as np
 import br
 import benchmark, solver
@@ -207,7 +206,7 @@ class HandEyeCalibrator(object):
     rot_errors = []
     trans_errors = []
     A,B = self.compute_motion_matrices()
-    for Ai, Bi in itertools.izip(A, B):
+    for Ai, Bi in zip(A, B):
       lT = np.dot(Ai, X)
       rT = np.dot(X, Bi)
       # Metric for rotation error

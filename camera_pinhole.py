@@ -13,7 +13,7 @@ frame = None
 corners = None
 pattern_size = (10, 7)  # chessboard pattern size (columns, rows)
 samples = []
-camera = Camera(0, "./camera_param.yaml")
+camera = Camera(4, "./camera_param.yaml")
 
 
 # Camera Thread
@@ -24,7 +24,7 @@ def camera_loop():
         ret, img = camera.read()
         if not ret:
             continue
-        img = cv2.flip(img, 1)
+        # img = cv2.flip(img, 1)
         res, found_corners = cv2.findChessboardCorners(img, pattern_size)
         cv2.drawChessboardCorners(img, pattern_size, found_corners, res)
 
