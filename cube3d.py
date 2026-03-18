@@ -8,27 +8,10 @@ from pytransform3d.transformations import plot_transform
 import cv2
 import yaml
 
-camparam_yaml = """image_width: 640
-image_height: 480
-camera_name: narrow_stereo
-camera_matrix:
-  rows: 3
-  cols: 3
-  data: [593.590515, 0.000000, 311.669737, 0.000000, 593.600421, 234.209769, 0.000000, 0.000000, 1.000000]
-distortion_model: plumb_bob
-distortion_coefficients:
-  rows: 1
-  cols: 5
-  data: [0.122839, -0.267967, -0.001085, -0.001151, 0.000000]
-rectification_matrix:
-  rows: 3
-  cols: 3
-  data: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000]
-projection_matrix:
-  rows: 3
-  cols: 4
-  data: [601.396090, 0.000000, 310.947702, 0.000000, 0.000000, 602.247313, 233.870561, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]"""
+np.set_printoptions(precision=4, suppress=True)
 
+with open("./camera_param.yaml", "r") as f:
+    camparam_yaml = f.read()
 camparams = yaml.safe_load(camparam_yaml)
 k = camparams["camera_matrix"]["data"]
 k = np.array(k).reshape(3, 3)
@@ -275,7 +258,7 @@ class ARUCOGridCube4x4:
 
         # order top, left, front, right, bottom
         #         0,    1,     2,     3,      4
-        objPointsidmarker = [
+        objPointsMarkerID = [
             [2, 3, 8, 9],
             [12, 13, 18, 19],
             [14, 15, 20, 21],
@@ -283,49 +266,58 @@ class ARUCOGridCube4x4:
             [26, 27, 32, 33],
         ]
 
-        topface = marker_corners3d[objPointsidmarker[0]]
-        leftface = marker_corners3d[objPointsidmarker[1]]
-        frontface = marker_corners3d[objPointsidmarker[2]]
-        rightface = marker_corners3d[objPointsidmarker[3]]
-        bottomface = marker_corners3d[objPointsidmarker[4]]
+        top = marker_corners3d[objPointsMarkerID[0]]
+        left = marker_corners3d[objPointsMarkerID[1]]
+        front = marker_corners3d[objPointsMarkerID[2]]
+        right = marker_corners3d[objPointsMarkerID[3]]
+        bottom = marker_corners3d[objPointsMarkerID[4]]
 
-        topface_p1 = square_corners3d[0, 0]
-        topface_p2 = square_corners3d[0, 1]
-        leftface_p1 = square_corners3d[0, 3]
-        leftface_p2 = square_corners3d[0, 0]
-        rightface_p1 = square_corners3d[0, 1]
-        rightface_p2 = square_corners3d[0, 2]
-        bottomface_p1 = square_corners3d[0, 2]
-        bottomface_p2 = square_corners3d[0, 3]
+        top_p1 = square_corners3d[0, 0]
+        top_p2 = square_corners3d[0, 1]
+        left_p1 = square_corners3d[0, 3]
+        left_p2 = square_corners3d[0, 0]
+        right_p1 = square_corners3d[0, 1]
+        right_p2 = square_corners3d[0, 2]
+        bottom_p1 = square_corners3d[0, 2]
+        bottom_p2 = square_corners3d[0, 3]
 
         rot = -np.deg2rad(90)
-        topfacerot = self.rotate_points(topface, topface_p1, topface_p2, rot)
-        leftfacerot = self.rotate_points(leftface, leftface_p1, leftface_p2, rot)
-        rightfacerot = self.rotate_points(
-            rightface, rightface_p1, rightface_p2, rot
-        )
-        bottomfacerot = self.rotate_points(
-            bottomface, bottomface_p1, bottomface_p2, rot
-        )
+        toprot = self.rotate_points(top, top_p1, top_p2, rot)
+        leftrot = self.rotate_points(left, left_p1, left_p2, rot)
+        rightrot = self.rotate_points(right, right_p1, right_p2, rot)
+        bottomrot = self.rotate_points(bottom, bottom_p1, bottom_p2, rot)
 
-        objPointsFull = np.empty((5 * 4, 4, 3), dtype=np.float64)
-        objPointsFull[0:4] = topfacerot
-        objPointsFull[4:8] = leftfacerot
-        objPointsFull[8:12] = frontface
-        objPointsFull[12:16] = rightfacerot
-        objPointsFull[16:20] = bottomfacerot
-        self.objPointsFull = objPointsFull
-        self.objPointsidmarker = objPointsidmarker
+        objPoints3D = np.empty((20, 4, 3))  # 20 markers, 4 corners each, 3xyz
+        objPoints3D[0:4] = toprot
+        objPoints3D[4:8] = leftrot
+        objPoints3D[8:12] = front
+        objPoints3D[12:16] = rightrot
+        objPoints3D[16:20] = bottomrot
+        self.objPoints3D = objPoints3D
+        self.objPointsMarkerID = np.array(objPointsMarkerID).flatten().tolist()
 
     def matchImagePoints(self, detectedCorners, detectedIds):
-        # corners, ids
         # corners is list of (1,4,2)
         # ids is list of list of [1]
         # output shape of objPoints: (144, 1, 3), shape of imgPoints: (144, 1, 2)
-        print(self.objPointsFull)
-        print(self.objPointsidmarker)
+
+        detID = np.array(detectedIds).flatten()
+        matchedIDs = np.intersect1d(detID, self.objPointsMarkerID)
+        numdetected = len(matchedIDs)
+        objPoints = np.full((numdetected, 4, 3), np.nan)
+        imgPoints = np.full((numdetected, 4, 2), np.nan)
+
         for id, corner in zip(detectedIds, detectedCorners):
-            print(f"Detected marker ID: {id}, Corners: {corner}")
+            if id in self.objPointsMarkerID:
+                idx = self.objPointsMarkerID.index(id)
+                objPts = self.objPoints3D[idx]
+                imgPts = corner
+                objPoints[idx] = objPts
+                imgPoints[idx] = imgPts
+
+        objPoints = objPoints.reshape(-1, 1, 3)
+        imgPoints = imgPoints.reshape(-1, 1, 2)
+        return objPoints, imgPoints
 
 
 class ARUCOCubePose:
@@ -350,11 +342,6 @@ class ARUCOCubePose:
 
     def run(self, camera, imgraw):
         corners, ids, rej = self.detector.detectMarkers(imgraw)
-        print(corners[0].shape)
-        print(ids[0])
-        # for id, corner in zip(ids, corners):
-        #     print(f"Detected marker ID: {id}, Corners: {corner}")
-
         if ids is not None:
             cv2.aruco.drawDetectedMarkers(imgraw, corners, ids)  # aruco corner
             objPoints, imgPoints = self.board.matchImagePoints(
@@ -363,16 +350,7 @@ class ARUCOCubePose:
                 None,
                 None,
             )
-            self.cube.matchImagePoints(corners, ids)
-
-            print(
-                f"shape of objPoints: {objPoints.shape}, shape of imgPoints: {imgPoints.shape}"
-            )
-            # print(
-            #     f"len(objPoints): {len(objPoints)}, len(imgPoints): {len(imgPoints)}"
-            # )
-            # for obj_pt, img_pt in zip(objPoints, imgPoints):
-            #     print(f"Object Point: {obj_pt}, Image Point: {img_pt}")
+            cubeobjPoints, cubeimgPoints = self.cube.matchImagePoints(corners, ids)
 
 
 acp = ARUCOCubePose()

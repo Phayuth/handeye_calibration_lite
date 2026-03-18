@@ -67,4 +67,3 @@ bin/
 build/
 
 *.csv
-*.json
