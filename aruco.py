@@ -35,7 +35,7 @@ class ARUCOSinglePose:
 
 
 class ARUCOBoardPose:
-    # https://docs.opencv.org/4.9.0/db/da9/tutorial_aruco_board_detection.html
+
     def __init__(self) -> None:
         # detection
         self.dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
@@ -114,10 +114,9 @@ class ARUCOBoardPose:
 if __name__ == "__main__":
     from camera import Camera
 
+    camleft = Camera(4, "./calib_log/left.yaml")
     board = ARUCOBoardPose()
     board.generate()
-
-    camleft = Camera(4, "./left.yaml")
     while True:
         _, imglraw = camleft.read()
         board.run(camleft, imglraw)

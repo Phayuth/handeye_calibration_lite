@@ -1,8 +1,8 @@
 import cv2
 import threading
-import numpy as np
 import tkinter as tk
 import yaml
+import numpy as np
 from camera import Camera
 
 lock = threading.Lock()
@@ -13,7 +13,7 @@ frame = None
 corners = None
 pattern_size = (10, 7)  # chessboard pattern size (columns, rows)
 samples = []
-camera = Camera(4, "./camera_param.yaml")
+camera = Camera(4, "./calib_log/left.yaml")
 
 
 # Camera Thread
