@@ -5,6 +5,7 @@ from pytransform3d.transformations import plot_transform
 import yaml
 import json
 
+# handeye
 Hgt = json.load(open("calib_log/handeye_calibration_log.json", "r"))[
     "Result in Matrix Format"
 ]
@@ -18,4 +19,16 @@ plot_transform(ax=ax, A2B=np.eye(4), s=0.1, name="Camera Frame")
 plot_transform(ax=ax, A2B=H, s=0.1, name="Hand-Eye Transform")
 plot_transform(ax=ax, A2B=Hgt, s=0.1, name="GT Transform")
 plt.tight_layout()
+plt.show()
+
+# stereo
+data = yaml.safe_load(open("calib_log/stereo_result.yaml", "r"))
+HCamRightToBoard = data["HCamRightToBoard"]
+HCamLeftToBoard = data["HCamLeftToBoard"]
+print("HCamRightToBoard:\n", HCamRightToBoard)
+print("HCamLeftToBoard:\n", HCamLeftToBoard)
+# plot
+ax = plot_transform(name="board")
+plot_transform(ax, HCamRightToBoard, name="camera_right")
+plot_transform(ax, HCamLeftToBoard, name="camera_left")
 plt.show()

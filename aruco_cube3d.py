@@ -174,13 +174,7 @@ class ARUCOCubePose:
         self.markerLength = 0.1 / 0.1
         self.markerSeparation = 0.05 / 0.1
         self.cube = ARUCOGridCube4x4(self.markerLength, self.markerSeparation)
-        self.board = cv2.aruco.GridBoard(
-            self.size,
-            self.markerLength,
-            self.markerSeparation,
-            self.dictionary,
-            None,
-        )
+
         self.detectorParams = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(
             self.dictionary, self.detectorParams
@@ -190,12 +184,7 @@ class ARUCOCubePose:
         corners, ids, rej = self.detector.detectMarkers(imgraw)
         if ids is not None:
             cv2.aruco.drawDetectedMarkers(imgraw, corners, ids)  # aruco corner
-            # objPoints, imgPoints = self.board.matchImagePoints(
-            #     corners,
-            #     ids,
-            #     None,
-            #     None,
-            # )
+
             cubeobjPoints, cubeimgPoints = self.cube.matchImagePoints(corners, ids)
             if cubeobjPoints is None or len(cubeobjPoints) < 4:
                 return None, None

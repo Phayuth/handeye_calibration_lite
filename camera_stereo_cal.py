@@ -13,39 +13,44 @@ running = True
 # global variables
 frame_left = None
 frame_right = None
-HobjTocamleft = None
-HobjTocamright = None
+HboardToCamLeft = None
+HboardToCamRight = None
+HCamRightToBoard = None
+HCamLeftToBoard = None
 
 camera_left = Camera(4, "./calib_log/left.yaml")
-# camera_right = Camera(5, "./calib_log/right.yaml")
+camera_right = Camera(10, "./calib_log/right.yaml")
 cube = ARUCOCubePose()
 
 
 # Camera Thread
 def camera_loop():
-    global frame_left, frame_right, running
+    global frame_left, frame_right, running, HboardToCamLeft, HboardToCamRight
 
     while running:
         ret1, img_left = camera_left.read()
-        # ret, img_right = camera_right.read()
-        ret2 = ret1
-        img_right = img_left.copy()  # For testing with single camera
+        ret2, img_right = camera_right.read()
         if not ret1 and not ret2:
             continue
 
-        HboardToCamLeft = cube.run(camera_left, img_left)
-        HboardToCamRight = cube.run(camera_left, img_right)
+        HbToCLeft = cube.run(camera_left, img_left)
+        HbToCRight = cube.run(camera_right, img_right)
 
         with lock:
             frame_left = img_left
             frame_right = img_right
+            HboardToCamLeft = HbToCLeft
+            HboardToCamRight = HbToCRight
 
     camera_left.release()
-    # camera_right.release()
+    camera_right.release()
 
 
-def calib(samples):
-    print("Calibration not implemented yet")
+def Rt_to_H(R, t):
+    H = np.eye(4)
+    H[:3, :3] = R
+    H[:3, 3] = t.flatten()
+    return H
 
 
 # GUI
@@ -105,7 +110,7 @@ class App:
         self.save_path.pack(side="left")
 
         # sample counter
-        self.status = tk.Label(frame_bottom, text="Samples: 0")
+        self.status = tk.Label(frame_bottom, text="Calibration")
         self.status.pack()
 
         self.update_gui()
@@ -121,31 +126,56 @@ class App:
         self.text.see(tk.END)
 
     def calibrate(self):
+        global HboardToCamLeft, HboardToCamRight, HCamLeftToBoard, HCamRightToBoard
         self.log("Running calibration...")
-        rms = calib(None)
-        self.log(f"Calibration done {rms}")
+        HboardToCamLeft = Rt_to_H(HboardToCamLeft[1], HboardToCamLeft[0])
+        HboardToCamRight = Rt_to_H(HboardToCamRight[1], HboardToCamRight[0])
+        self.log(f"Left Camera Pose:\n{HboardToCamLeft}")
+        self.log(f"Right Camera Pose:\n{HboardToCamRight}")
+
+        HCamLeftToBoard = np.linalg.inv(HboardToCamLeft)
+        HCamRightToBoard = np.linalg.inv(HboardToCamRight)
+        HCamRightToCamLeft = HboardToCamLeft @ HCamRightToBoard
+        HCamLeftToCamRight = np.linalg.inv(HCamRightToCamLeft)
+
+        # RT matrix for C1 is identity.
+        # RT matrix for C2 is the R and T obtained from stereo calibration.
+        RT1 = np.concatenate([np.eye(3), [[0], [0], [0]]], axis=-1)
+        RT2 = HCamLeftToCamRight[0:3, :]
+        # projection matrix for C1
+        # projection matrix for C2
+        camleft_p = camera_left.info["k"] @ RT1
+        camright_p = camera_right.info["k"] @ RT2
+
+        self.log(f"Left Camera RT:\n{RT1}")
+        self.log(f"Right Camera RT:\n{RT2}")
+        self.log(f"Left Camera Projection Matrix:\n{camleft_p}")
+        self.log(f"Right Camera Projection Matrix:\n{camright_p}")
 
     def reset(self):
-        self.status.config(text="Samples: 0")
-        self.log("samples reset")
+        global HboardToCamLeft, HboardToCamRight
+        HboardToCamLeft = None
+        HboardToCamRight = None
+        self.log("Reset")
 
     def save(self):
-        if self.camera_matrix is None or self.dist_coefs is None:
-            self.log("Error: Run calibration first")
-            return
-
+        global HCamRightToBoard, HCamLeftToBoard
         path = self.save_path.get()
+        self.log(f"Saving calibration results...")
 
-        data = {
-            "camera_matrix": self.camera_matrix.tolist(),
-            "dist_coefs": self.dist_coefs.tolist(),
-        }
-        try:
-            with open(path, "w") as f:
-                yaml.dump(data, f)
-            self.log(f"Saved calibration to {path}")
-        except Exception as e:
-            self.log(f"Error saving: {e}")
+        np_to_yaml = lambda arr: arr.tolist() if arr is not None else None
+        HCamRightToBoard_list = np_to_yaml(HCamRightToBoard)
+        HCamLeftToBoard_list = np_to_yaml(HCamLeftToBoard)
+        with open(path, "w") as f:
+            yaml.safe_dump(
+                {
+                    "HCamRightToBoard": HCamRightToBoard_list,
+                    "HCamLeftToBoard": HCamLeftToBoard_list,
+                },
+                f,
+                sort_keys=False,
+            )
+        self.log(f"Saved to {path}")
 
     def quit(self):
         global running
