@@ -1,7 +1,5 @@
-import numpy as np
 import cv2
-
-np.set_printoptions(precision=4, suppress=True)
+import numpy as np
 
 
 class ARUCOGridCube4x4:
@@ -171,14 +169,39 @@ class ARUCOCubePose:
     def __init__(self):
         self.dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.size = (6, 6)  # (cols, rows)
-        self.markerLength = 0.1 / 0.1
-        self.markerSeparation = 0.05 / 0.1
+        self.markerLength = 0.0275
+        self.markerSeparation = 0.006875
         self.cube = ARUCOGridCube4x4(self.markerLength, self.markerSeparation)
-
+        self.board = cv2.aruco.GridBoard(
+            self.size,
+            self.markerLength,
+            self.markerSeparation,
+            self.dictionary,
+            None,
+        )
         self.detectorParams = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(
             self.dictionary, self.detectorParams
         )
+
+    def generate(self):
+        cols, rows = self.size
+        board_w = cols * self.markerLength + (cols - 1) * self.markerSeparation
+        board_h = rows * self.markerLength + (rows - 1) * self.markerSeparation
+
+        out_h = 1000
+        out_w = int(
+            round(out_h * (board_w / board_h))
+        )  # outSize = (width, height)
+
+        image = self.board.generateImage(
+            outSize=(out_w, out_h), marginSize=20, borderBits=1
+        )
+        while True:
+            cv2.imshow("aruco board", image)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+        cv2.destroyAllWindows()
 
     def run(self, camera, imgraw):
         corners, ids, rej = self.detector.detectMarkers(imgraw)
@@ -219,6 +242,7 @@ if __name__ == "__main__":
 
     camera = Camera(4, "./calib_log/left.yaml")
     acp = ARUCOCubePose()
+    acp.generate()
     while True:
         ret, imgraw = camera.read()
         if not ret:
