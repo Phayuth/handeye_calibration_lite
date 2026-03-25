@@ -50,6 +50,15 @@ class ARUCOGridCube4x4:
         return l
 
     @staticmethod
+    def get_inner_2aruco_corners_size(
+        square_size, markerLength_og, markerSeparation_og
+    ):
+        markerLSRatio = markerLength_og / markerSeparation_og
+        markerS = square_size / (2 + 2 * markerLSRatio)
+        inner2aruco = (2 * markerLSRatio + 1) * markerS
+        return inner2aruco
+
+    @staticmethod
     def make_square_origin(marker_separation):
         return np.array(
             [
@@ -139,6 +148,12 @@ class ARUCOGridCube4x4:
         self.objPoints3D = objPoints3D
         self.objPointsMarkerID = np.array(objPointsMarkerID).flatten().tolist()
 
+        # save debug
+        self._cube_corners3d = cube_corners3d
+        self._marker_corners3d = marker_corners3d
+        self._square_corners3d = square_corners3d
+        self._objPointsMarkerID = objPointsMarkerID
+
     def matchImagePoints(self, detectedCorners, detectedIds):
         # corners is list of (1,4,2)
         # ids is list of list of [1]
@@ -162,6 +177,114 @@ class ARUCOGridCube4x4:
         objPoints = np.asarray(matched_obj, dtype=np.float32).reshape(-1, 1, 3)
         imgPoints = np.asarray(matched_img, dtype=np.float32).reshape(-1, 1, 2)
         return objPoints, imgPoints
+
+    def _plot_debug(self):
+        import matplotlib.pyplot as plt
+        from pytransform3d.plot_utils import make_3d_axis
+        from pytransform3d.transformations import plot_transform
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.scatter(
+            self._marker_corners3d[:, :, 0],
+            self._marker_corners3d[:, :, 1],
+            c="r",
+            s=10,
+        )
+        for l in self._objPointsMarkerID:
+            for i in l:
+                for j in range(4):
+                    ax.text(
+                        self._marker_corners3d[i, j, 0],
+                        self._marker_corners3d[i, j, 1],
+                        f"{i}x{j}",
+                        color="green",
+                        fontsize=10,
+                        ha="center",
+                        va="center",
+                    )
+                shape = self._marker_corners3d[i]
+                p = plt.Polygon(
+                    shape[:, :2], closed=True, fill=None, edgecolor="b"
+                )
+                ax.add_patch(p)
+                mean = shape[:, :2].mean(axis=0)
+                ax.text(
+                    mean[0],
+                    mean[1],
+                    str(i),
+                    color="blue",
+                    fontsize=8,
+                    ha="center",
+                    va="center",
+                )
+        # center square
+        c = plt.Polygon(
+            self._square_corners3d[0, :, :2],
+            closed=True,
+            fill=None,
+            edgecolor="g",
+            hatch="///",
+        )
+        ax.add_patch(c)
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_title("Marker Corners (2D Projection, Image-Frame Style)")
+        ax.grid()
+        ax.set_aspect("equal", adjustable="box")
+        ax.invert_yaxis()  # image frame: y grows downward
+        plt.show()
+
+        axs = make_3d_axis(ax_s=0.5, unit="m", n_ticks=6)
+        plot_transform(ax=axs)
+        cube_corners3d = self._cube_corners3d.reshape(-1, 3)
+        cube_edges = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0),  # bottom square
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4),  # top square
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),  # vertical edges
+        ]
+
+        # Plot cube vertices / edges
+        axs.scatter(
+            cube_corners3d[:, 0],
+            cube_corners3d[:, 1],
+            cube_corners3d[:, 2],
+            c="k",
+            s=80,
+            label="cube_corners3d",
+        )
+        for i, j in cube_edges:
+            axs.plot(
+                [cube_corners3d[i, 0], cube_corners3d[j, 0]],
+                [cube_corners3d[i, 1], cube_corners3d[j, 1]],
+                [cube_corners3d[i, 2], cube_corners3d[j, 2]],
+                color="tab:blue",
+                linewidth=2,
+            )
+
+        # marker corners
+        axs.scatter(
+            self.objPoints3D[:, :, 0].flatten(),
+            self.objPoints3D[:, :, 1].flatten(),
+            self.objPoints3D[:, :, 2].flatten(),
+            c="m",
+            s=50,
+            label="objPoints",
+        )
+        axs.set_xticklabels([])
+        axs.set_yticklabels([])
+        axs.set_zticklabels([])
+        axs.legend()
+        axs.set_title("Marker Corners in 3D")
+        plt.show()
 
 
 class ARUCOCubePose:
