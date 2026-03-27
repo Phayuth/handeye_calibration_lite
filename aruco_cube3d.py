@@ -49,12 +49,9 @@ class ARUCOGridCube4x4:
         )
         return l
 
-    @staticmethod
-    def get_inner_2aruco_corners_size(
-        square_size, markerLength_og, markerSeparation_og
-    ):
-        markerLSRatio = markerLength_og / markerSeparation_og
-        markerS = square_size / (2 + 2 * markerLSRatio)
+    def get_inner_2aruco_corners_size(self, new_square_size):
+        markerLSRatio = self.markerLength / self.markerSeparation
+        markerS = new_square_size / (2 + 2 * markerLSRatio)
         inner2aruco = (2 * markerLSRatio + 1) * markerS
         return inner2aruco
 
@@ -311,7 +308,8 @@ class ARUCOCubePose:
         cols, rows = self.size
         board_w = cols * self.markerLength + (cols - 1) * self.markerSeparation
         board_h = rows * self.markerLength + (rows - 1) * self.markerSeparation
-
+        inner2acorner_size = self.cube.get_inner_2aruco_corners_size(0.14)
+        print(f"==>> inner2acorner_size: \n{inner2acorner_size}")
         out_h = 1000
         out_w = int(
             round(out_h * (board_w / board_h))
