@@ -74,13 +74,6 @@ class ARUCOBoardPose:
         cv2.destroyAllWindows()
 
     def run(self, camera, imgraw):
-        # OpenCV drawing APIs require a writable, contiguous Mat-compatible buffer.
-        if imgraw is None:
-            return None
-        if imgraw.ndim == 3 and imgraw.shape[2] == 4:
-            imgraw = cv2.cvtColor(imgraw, cv2.COLOR_BGRA2BGR)
-        imgraw = np.ascontiguousarray(imgraw, dtype=np.uint8)
-        # ------------------------------------------------------------------------
         corners, ids, rej = self.detector.detectMarkers(imgraw)
         if ids is not None:
             cv2.aruco.drawDetectedMarkers(imgraw, corners, ids)  # aruco corner
@@ -91,18 +84,9 @@ class ARUCOBoardPose:
                 None,
                 None,
             )
-# ------------------------------------------------------------------------
             if objPoints is None or imgPoints is None:
                 return None
 
-            # Normalize shapes for solvePnP and validate correspondence count.
-            objPoints = np.asarray(objPoints, dtype=np.float64).reshape(-1, 3)
-            imgPoints = np.asarray(imgPoints, dtype=np.float64).reshape(-1, 2)
-            if objPoints.shape[0] < 4 or imgPoints.shape[0] < 4:
-                return None
-            if objPoints.shape[0] != imgPoints.shape[0]:
-                return None
-# ------------------------------------------------------------------------
             retval, rvc, tvc = cv2.solvePnP(
                 objPoints,
                 imgPoints,
@@ -112,11 +96,8 @@ class ARUCOBoardPose:
                 None,
                 False,
             )
-# ------------------------------------------------------------------------
-            if not retval:
-                return None
             R, _ = cv2.Rodrigues(rvc)
-# ------------------------------------------------------------------------
+
             if objPoints is not None:
                 cv2.drawFrameAxes(
                     imgraw,
@@ -149,6 +130,15 @@ if __name__ == "__main__":
 
     from camera_zed import ZedCamera
 
+    def zed_img_to_cv2(zedimg):
+        # OpenCV drawing APIs require a writable, contiguous Mat-compatible buffer.
+        if zedimg is None:
+            return None
+        if zedimg.ndim == 3 and zedimg.shape[2] == 4:
+            zedimg = cv2.cvtColor(zedimg, cv2.COLOR_BGRA2BGR)
+        zedimg = np.ascontiguousarray(zedimg, dtype=np.uint8)
+        return zedimg
+
     board = ARUCOBoardPose()
     zedcam = ZedCamera()
     while True:
@@ -157,8 +147,8 @@ if __name__ == "__main__":
             continue
         imgll = imgl.get_data()
         imgrr = imgr.get_data()
-        imgll = np.ascontiguousarray(imgll[:, :, :3], dtype=np.uint8)
-        imgrr = np.ascontiguousarray(imgrr[:, :, :3], dtype=np.uint8)
+        imgll = zed_img_to_cv2(imgll)
+        imgrr = zed_img_to_cv2(imgrr)
         board.run(zedcam, imgll)
         board.run(zedcam, imgrr)
         cv2.imshow("img left", imgll)

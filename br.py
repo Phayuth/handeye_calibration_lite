@@ -4,7 +4,6 @@ import numpy as np
 X_AXIS = np.array([1.0, 0.0, 0.0], dtype=np.float64)
 Y_AXIS = np.array([0.0, 1.0, 0.0], dtype=np.float64)
 Z_AXIS = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-_MAX_FLOAT = np.maximum_sctype(float)
 # epsilon for testing whether a number is close to zero
 _FLOAT_EPS = np.finfo(float).eps
 _EPS = np.finfo(float).eps * 4.0

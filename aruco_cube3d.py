@@ -331,7 +331,7 @@ class ARUCOCubePose:
 
             cubeobjPoints, cubeimgPoints = self.cube.matchImagePoints(corners, ids)
             if cubeobjPoints is None or len(cubeobjPoints) < 4:
-                return None, None
+                return None
 
             retval, rvc, tvc = cv2.solvePnP(
                 cubeobjPoints,
@@ -356,6 +356,7 @@ class ARUCOCubePose:
                 )
 
             return tvc, R
+        return None
 
 
 if __name__ == "__main__":
