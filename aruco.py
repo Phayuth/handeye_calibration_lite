@@ -115,9 +115,9 @@ class ARUCOBoardPose:
 
 if __name__ == "__main__":
     # from camera import Camera
+    board = ARUCOBoardPose()
 
     # camleft = Camera(4, "./calib_log/left.yaml")
-    # board = ARUCOBoardPose()
     # board.generate()
     # while True:
     #     _, imglraw = camleft.read()
@@ -130,16 +130,6 @@ if __name__ == "__main__":
 
     from camera_zed import ZedCamera
 
-    def zed_img_to_cv2(zedimg):
-        # OpenCV drawing APIs require a writable, contiguous Mat-compatible buffer.
-        if zedimg is None:
-            return None
-        if zedimg.ndim == 3 and zedimg.shape[2] == 4:
-            zedimg = cv2.cvtColor(zedimg, cv2.COLOR_BGRA2BGR)
-        zedimg = np.ascontiguousarray(zedimg, dtype=np.uint8)
-        return zedimg
-
-    board = ARUCOBoardPose()
     zedcam = ZedCamera()
     while True:
         imgl, imgr = zedcam.read()
@@ -147,8 +137,8 @@ if __name__ == "__main__":
             continue
         imgll = imgl.get_data()
         imgrr = imgr.get_data()
-        imgll = zed_img_to_cv2(imgll)
-        imgrr = zed_img_to_cv2(imgrr)
+        imgll = zedcam.zed_img_to_cv2(imgll)
+        imgrr = zedcam.zed_img_to_cv2(imgrr)
         board.run(zedcam, imgll)
         board.run(zedcam, imgrr)
         cv2.imshow("img left", imgll)

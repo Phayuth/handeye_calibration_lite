@@ -8,6 +8,7 @@ import rtde_control
 import rtde_receive
 from aruco import ARUCOBoardPose
 from camera import Camera
+from camera_zed import ZedCamera
 import calibrator
 import br
 import solver
@@ -17,13 +18,14 @@ running = True
 
 # global variables to store latest poses
 frame = None
-latest_cTo_H = None # convention: cTo mean "obj to cam". read in reverse order
-latest_bTe_H = None # convention: bTe mean "ee to base". read in reverse order
+latest_cTo_H = None  # convention: cTo mean "obj to cam". read in reverse order
+latest_bTe_H = None  # convention: bTe mean "ee to base". read in reverse order
 samples = []
 result_matrix = None
 result_quaternion = None
 
-camera = Camera(4, "./camera_param.yaml")
+# camera = Camera(4, "./camera_param.yaml")
+camera_Zed = ZedCamera()
 board = ARUCOBoardPose()
 hostip = "192.168.0.39"
 rtde_c = rtde_control.RTDEControlInterface(hostip)
@@ -31,14 +33,44 @@ rtde_r = rtde_receive.RTDEReceiveInterface(hostip)
 
 
 # Camera thread
+# def camera_loop():
+#     global frame, running, latest_cTo_H
+
+#     while running:
+
+#         ret, img = camera.read()
+
+#         res = board.run(camera, img)
+#         if res is not None:
+#             tvc, R = res
+#             H = np.eye(4)
+#             H[:3, :3] = R
+#             H[:3, 3] = tvc.flatten()
+#             with lock:
+#                 latest_cTo_H = H
+
+#         if not ret:
+#             continue
+
+#         with lock:
+#             frame = img.copy()
+
+
+#     camera.release()
+
 def camera_loop():
     global frame, running, latest_cTo_H
 
     while running:
+        imgl, imgr = camera_Zed.read()
+        if imgl is None or imgr is None:
+            continue
+        imgll = imgl.get_data()
+        imgrr = imgr.get_data()
+        imgll = camera_Zed.zed_img_to_cv2(imgll)
+        imgrr = camera_Zed.zed_img_to_cv2(imgrr)
 
-        ret, img = camera.read()
-
-        res = board.run(camera, img)
+        res = board.run(camera_Zed, imgll)
         if res is not None:
             tvc, R = res
             H = np.eye(4)
@@ -47,13 +79,8 @@ def camera_loop():
             with lock:
                 latest_cTo_H = H
 
-        if not ret:
-            continue
-
         with lock:
-            frame = img.copy()
-
-    camera.release()
+            frame = imgll.copy()
 
 
 # Robot thread
@@ -82,7 +109,8 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("Hand-eye tool")
-        self.canvas = tk.Canvas(root, width=640, height=480)
+        # self.canvas = tk.Canvas(root, width=640, height=480)
+        self.canvas = tk.Canvas(root, width=1280, height=720)
         self.canvas.pack()
 
         # buttons

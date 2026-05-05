@@ -1,5 +1,5 @@
 import pyzed.sl as sl
-import cv2 as cv
+import cv2
 import numpy as np
 
 
@@ -49,37 +49,14 @@ class ZedCamera:
 
     def get_camera_info(self):
         cam_info = self.zed.get_camera_information()
-        Kl = (
-            cam_info.camera_configuration.calibration_parameters.left_cam.fx,
-            0,
-            cam_info.camera_configuration.calibration_parameters.left_cam.cx,
-            0,
-            cam_info.camera_configuration.calibration_parameters.left_cam.fy,
-            cam_info.camera_configuration.calibration_parameters.left_cam.cy,
-            0,
-            0,
-            1,
-        )
-        Kr = (
-            cam_info.camera_configuration.calibration_parameters.right_cam.fx,
-            0,
-            cam_info.camera_configuration.calibration_parameters.right_cam.cx,
-            0,
-            cam_info.camera_configuration.calibration_parameters.right_cam.fy,
-            cam_info.camera_configuration.calibration_parameters.right_cam.cy,
-            0,
-            0,
-            1,
-        )
-
+        lc = cam_info.camera_configuration.calibration_parameters.left_cam
+        rc = cam_info.camera_configuration.calibration_parameters.right_cam
+        Kl = (lc.fx, 0, lc.cx, 0, lc.fy, lc.cy, 0, 0, 1)
+        Kr = (rc.fx, 0, rc.cx, 0, rc.fy, rc.cy, 0, 0, 1)
         self.infoleft["k"] = np.array(Kl).reshape(3, 3)
         self.inforight["k"] = np.array(Kr).reshape(3, 3)
-
-        dl = cam_info.camera_configuration.calibration_parameters.left_cam.disto
-        dr = cam_info.camera_configuration.calibration_parameters.right_cam.disto
-
-        self.infoleft["d"] = np.array(dl)
-        self.inforight["d"] = np.array(dr)
+        self.infoleft["d"] = np.array(lc.disto)
+        self.inforight["d"] = np.array(rc.disto)
 
         # Hd = cam_info.camera_configuration.calibration_parameters.stereo_transform
         # Hdt = Hd.get_translation()
@@ -110,6 +87,15 @@ class ZedCamera:
     def release(self):
         self.zed.close()
 
+    def zed_img_to_cv2(self, zedimg):
+        # OpenCV drawing APIs require a writable, contiguous Mat-compatible buffer.
+        if zedimg is None:
+            return None
+        if zedimg.ndim == 3 and zedimg.shape[2] == 4:
+            zedimg = cv2.cvtColor(zedimg, cv2.COLOR_BGRA2BGR)
+        zedimg = np.ascontiguousarray(zedimg, dtype=np.uint8)
+        return zedimg
+
 
 if __name__ == "__main__":
     zed = ZedCamera()
@@ -117,10 +103,10 @@ if __name__ == "__main__":
         imageleft, imageright = zed.read()
         if imageleft is None or imageright is None:
             continue
-        cv.imshow("LeftImage", imageleft.get_data())
-        cv.imshow("Right Image", imageright.get_data())
-        if cv.waitKey(1) & 0xFF == ord("q"):
+        cv2.imshow("LeftImage", imageleft.get_data())
+        cv2.imshow("Right Image", imageright.get_data())
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     zed.release()
-    cv.destroyAllWindows()
+    cv2.destroyAllWindows()
